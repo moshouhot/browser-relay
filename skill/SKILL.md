@@ -50,6 +50,7 @@ only when you need the full API response.
 ```bash
 browser-relay tabs
 browser-relay frames --tab <tabId>
+browser-relay console --tab <tabId> --limit 50
 browser-relay snapshot --tab <tabId> --max-length 20000
 browser-relay snapshot --tab <tabId> --frame <frameId>
 browser-relay click 'button[type=submit]' --tab <tabId>
@@ -90,6 +91,15 @@ POST http://127.0.0.1:18795/api/navigate
 Header: Content-Type: application/json
 Body: { "url": "https://example.com", "tabId?": "optional-target-id" }
 ```
+
+### 2b. browser_console
+Read captured console, page error, and browser log entries.
+```
+GET http://127.0.0.1:18795/api/console?tabId=<id>&limit=100&level=error&clear=false
+POST http://127.0.0.1:18795/api/console/clear
+Body: { "tabId?": "...", "level?": "error" }
+```
+Use this after actions that may trigger frontend errors or warnings.
 
 ### 3. browser_snapshot
 Get a text representation of the current page (interactive elements annotated).
@@ -206,8 +216,9 @@ When asked to do something with a web page:
 5. **Plan actions** based on snapshot (click what, type where)
 6. **Execute** (`browser-relay click`, `browser-relay type`, `browser-relay scroll`) one at a time
 7. **`browser-relay wait`** after actions that trigger async UI changes
-8. **Re-snapshot** after each action to verify state
-9. **Screenshot** if visual confirmation is needed
+8. **`browser-relay console`** if the page behaves unexpectedly or after risky actions
+9. **Re-snapshot** after each action to verify state
+10. **Screenshot** if visual confirmation is needed
 
 ## Example Session
 

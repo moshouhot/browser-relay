@@ -173,6 +173,7 @@ Browser commands:
   tabs        List attached Chrome tabs
   frames      List frames in a tab
   snapshot    Print annotated page text
+  console     Print captured console, page error, and browser log entries
   click       Click an element by CSS selector
   type        Type text into an input or focused element
   scroll      Scroll the page
@@ -392,6 +393,22 @@ function printFrames(data, json) {
   }
 }
 
+function printConsole(data, json) {
+  if (json) return printData(data, true);
+  const entries = data?.entries || [];
+  if (!entries.length) {
+    console.log("No console entries.");
+    return;
+  }
+  for (const entry of entries) {
+    const time = entry.receivedAt || "";
+    const level = entry.level || "log";
+    const text = entry.text || "";
+    const where = entry.tabId ? ` ${entry.tabId}` : "";
+    console.log(`[${time}] ${level}${where} ${text}`);
+  }
+}
+
 function ensureOk(data, json = false) {
   if (data?.ok !== false) return;
   if (json) {
@@ -418,6 +435,15 @@ async function browserApiCommand(cmd, args) {
       addParam(params, "tabId", tabIdFrom(flags));
       const qs = params.toString();
       return printFrames(await relayRequest("GET", `/api/frames${qs ? `?${qs}` : ""}`), json);
+    }
+    case "console": {
+      const params = new URLSearchParams();
+      addParam(params, "tabId", tabIdFrom(flags));
+      addParam(params, "level", flagValue(flags, "level"));
+      addParam(params, "limit", flagValue(flags, "limit"));
+      if (flagBool(flags, "clear")) params.set("clear", "true");
+      const qs = params.toString();
+      return printConsole(await relayRequest("GET", `/api/console${qs ? `?${qs}` : ""}`), json);
     }
     case "navigate":
     case "go":
@@ -581,6 +607,7 @@ function apiHelp() {
   console.log(`Browser operation commands:
   tabs                         List attached Chrome tabs
   debug                        Show relay diagnostics
+  console [--tab id]           Print captured console/page errors
   navigate <url> [--tab id]    Navigate an attached tab
   frames [--tab id]            List frame ids for a tab
   snapshot [--tab id]          Print annotated page text
@@ -597,6 +624,8 @@ Common flags:
   --tab, -t <id>               Target tab id from 'browser-relay tabs'
   --frame <id>                 Target frame id from 'browser-relay frames'
   --json, -j                   Print JSON response
+  --level <level>              Filter console entries by level
+  --limit <n>                  Limit console entries
   --selector, -s <css>         Selector for click/type/download
   --role <role>                Lightweight locator role (button/link/textbox)
   --name <name>                Lightweight locator accessible name
@@ -607,6 +636,7 @@ Common flags:
 Examples:
   browser-relay tabs
   browser-relay frames --tab ABC123
+  browser-relay console --limit 50
   browser-relay snapshot --tab ABC123 --max-length 20000
   browser-relay snapshot --tab ABC123 --frame FRAME123
   browser-relay click 'button[type=submit]'
@@ -640,6 +670,7 @@ switch (cmd) {
   case "uninstall": await uninstall(); break;
   case "tabs":
   case "list":
+  case "console":
   case "debug":
   case "frames":
   case "navigate":

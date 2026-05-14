@@ -177,6 +177,7 @@ Browser commands:
   console     Print captured console, page error, and browser log entries
   click       Click an element by CSS selector
   type        Type text into an input or focused element
+  key         Press a key or keyboard shortcut
   scroll      Scroll the page
   screenshot  Save a PNG screenshot
   eval        Evaluate JavaScript in the page
@@ -571,6 +572,22 @@ async function browserApiCommand(cmd, args) {
       console.log("Typed.");
       return;
     }
+    case "key": {
+      const combo = requireValue(flagValue(flags, "key", "combo") || positional.join("+"), "key or combo is required");
+      const data = await relayRequest("POST", "/api/key", {
+        combo,
+        tabId: tabIdFrom(flags),
+        ctrl: flagBool(flags, "ctrl", "control"),
+        alt: flagBool(flags, "alt", "option"),
+        shift: flagBool(flags, "shift"),
+        meta: flagBool(flags, "meta", "cmd", "command"),
+        text: flagValue(flags, "text"),
+      });
+      ensureOk(data);
+      if (json) return printData(data, true);
+      console.log(`Pressed: ${combo}`);
+      return;
+    }
     case "scroll": {
       const direction = flagValue(flags, "direction") || positional[0] || "down";
       const amount = flagValue(flags, "amount");
@@ -686,6 +703,7 @@ function apiHelp() {
   snapshot [--tab id]          Print annotated page text
   click <selector>             Click a CSS selector
   type <text>                  Type text into the focused element
+  key <key|combo>              Press a key or combo (Enter, Escape, Control+L)
   scroll [down|up|top|bottom]  Scroll the page
   screenshot <file.png>        Save a PNG screenshot
   eval <js>                    Evaluate JavaScript in the page
@@ -720,6 +738,7 @@ Examples:
   browser-relay click --role button --name Save --exact
   browser-relay type 'hello world' --selector 'input[name=q]' --clear --submit
   browser-relay type 'hello world' --role textbox --name Search --clear
+  browser-relay key Control+L
   browser-relay wait --selector '#done' --visible --timeout 10000
   browser-relay wait --role button --name Save --visible --timeout 10000
   browser-relay cdp Runtime.evaluate --params '{"expression":"document.title","returnByValue":true}'
@@ -757,6 +776,7 @@ switch (cmd) {
   case "snapshot":
   case "click":
   case "type":
+  case "key":
   case "scroll":
   case "screenshot":
   case "eval":

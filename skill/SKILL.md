@@ -58,6 +58,7 @@ browser-relay click 'button[type=submit]' --tab <tabId>
 browser-relay click --role button --name 'Save' --exact --tab <tabId>
 browser-relay type 'hello world' --selector 'input[name=q]' --clear --submit --tab <tabId> --frame <frameId>
 browser-relay type 'hello world' --role textbox --name Search --clear --tab <tabId>
+browser-relay key Control+L --tab <tabId>
 browser-relay wait --selector '#done' --visible --timeout 10000 --tab <tabId>
 browser-relay wait --role button --name Save --visible --timeout 10000 --tab <tabId>
 browser-relay scroll down --amount 1000 --tab <tabId>
@@ -163,14 +164,24 @@ Body: { "direction": "down|up|top|bottom", "amount?": 800, "tabId?": "..." }
 ```
 Pass `"frameId"` to scroll an iframe.
 
-### 7. browser_screenshot
+### 7. browser_key
+Press a key or keyboard shortcut using real keyboard events.
+```
+POST http://127.0.0.1:18795/api/key
+Body: { "key?": "Enter", "combo?": "Control+L", "tabId?": "..." }
+```
+
+Use `combo` for shortcuts (`Control+L`, `Meta+K`, `Shift+Tab`) and `key`
+for single keys (`Enter`, `Escape`, `ArrowDown`, `a`).
+
+### 8. browser_screenshot
 Capture a PNG screenshot (base64). Full-page capture uses layout metrics and returns strategy/size metadata.
 ```
 POST/GET http://127.0.0.1:18795/api/screenshot?tabId=<id>&fullPage=true
 ```
 Returns: `{ ok: true, data: "base64...", format: "png", fullPage, strategy, width, height, bytes }`
 
-### 8. browser_eval
+### 9. browser_eval
 Evaluate arbitrary JavaScript in the page. The escape hatch.
 ```
 POST http://127.0.0.1:18795/api/eval
@@ -178,7 +189,7 @@ Body: { "expression": "document.querySelector('h1').innerText", "tabId?": "..." 
 ```
 Pass `"frameId"` to evaluate in an iframe.
 
-### 9. browser_download
+### 10. browser_download
 Get the URL of an image/media/link element.
 ```
 POST http://127.0.0.1:18795/api/download
@@ -186,7 +197,7 @@ Body: { "selector?": "img.profile-pic", "locator?": { "role?": "link", "name?": 
 ```
 Pass `"frameId"` to query inside an iframe.
 
-### 10. browser_wait
+### 11. browser_wait
 Wait for page state.
 ```
 POST http://127.0.0.1:18795/api/wait
@@ -207,7 +218,7 @@ Body: {
 
 Lightweight locators are pragmatic approximations for agent use. Prefer CSS when stable; use `role`, `name`, `text`, and `exact` when the page has no durable selector.
 
-### 11. browser_cdp
+### 12. browser_cdp
 Advanced local escape hatch for Chrome DevTools Protocol commands.
 ```
 POST http://127.0.0.1:18795/api/cdp
@@ -246,7 +257,7 @@ When asked to do something with a web page:
 3. **`browser-relay navigate`** if needed — go to the target page
 4. **`browser-relay snapshot`** — understand the page structure
 5. **Plan actions** based on snapshot (click what, type where)
-6. **Execute** (`browser-relay click`, `browser-relay type`, `browser-relay scroll`) one at a time
+6. **Execute** (`browser-relay click`, `browser-relay type`, `browser-relay key`, `browser-relay scroll`) one at a time
 7. **`browser-relay wait`** after actions that trigger async UI changes
 8. **`browser-relay console`** if the page behaves unexpectedly or after risky actions
 9. **`browser-relay network`** after navigation or if requests fail, hang, or return unexpected statuses

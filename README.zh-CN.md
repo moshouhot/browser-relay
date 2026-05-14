@@ -158,6 +158,8 @@ browser-relay key Control+L
 browser-relay wait --selector '#done' --visible --timeout 10000
 browser-relay wait --role button --name Save --visible --timeout 10000
 browser-relay scroll down --amount 1000
+browser-relay download-start https://example.com/file.pdf --filename files/file.pdf
+browser-relay downloads --limit 20
 browser-relay screenshot /tmp/page.png --full-page
 browser-relay eval 'document.title'
 browser-relay cdp Runtime.evaluate --params '{"expression":"document.title","returnByValue":true}'
@@ -226,6 +228,12 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/wait` | POST | 等待 selector、locator、文本、URL 或表达式 |
 | `/api/cdp` | POST | 从 loopback 客户端发送原始 CDP 命令 |
 | `/api/download` | POST | 按 selector 或 locator 获取元素 URL |
+| `/api/download/start` | POST | 从 URL 启动真实 Chrome 下载 |
+| `/api/downloads` | GET | 列出 Chrome 下载和最近下载事件 |
+| `/api/downloads/clear` | POST | 清理已捕获的下载事件 |
+
+真实 Chrome 下载需要扩展的 `downloads` 权限。如果是从旧版本升级，需在
+`chrome://extensions` 里重新加载 unpacked 扩展。
 
 ### 错误响应
 
@@ -274,6 +282,9 @@ browser-relay screenshot # 保存 PNG 截图
 browser-relay eval       # 在页面内执行 JavaScript
 browser-relay wait       # 等待页面状态
 browser-relay cdp        # 发送原始 CDP 命令
+browser-relay download   # 输出元素 src/href
+browser-relay download-start # 启动 Chrome 下载
+browser-relay downloads      # 列出 Chrome 下载和事件
 browser-relay api-help   # 查看浏览器操作命令示例
 ```
 

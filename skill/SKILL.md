@@ -62,6 +62,8 @@ browser-relay key Control+L --tab <tabId>
 browser-relay wait --selector '#done' --visible --timeout 10000 --tab <tabId>
 browser-relay wait --role button --name Save --visible --timeout 10000 --tab <tabId>
 browser-relay scroll down --amount 1000 --tab <tabId>
+browser-relay download-start https://example.com/file.pdf --filename files/file.pdf
+browser-relay downloads --limit 20
 browser-relay screenshot /tmp/page.png --full-page --tab <tabId>
 browser-relay eval 'document.title' --tab <tabId>
 browser-relay cdp Runtime.evaluate --params '{"expression":"document.title","returnByValue":true}' --tab <tabId>
@@ -248,6 +250,31 @@ For automation, branch on `code` instead of parsing `error`. Use
 return the same JSON in the tool content and set `isError: true` for
 `ok:false` responses.
 
+### 10. browser_download_start
+Start a real Chrome download from a URL using the user's browser profile.
+```
+POST http://127.0.0.1:18795/api/download/start
+Body: {
+  "url": "https://example.com/file.pdf",
+  "filename?": "files/file.pdf",
+  "saveAs?": false,
+  "conflictAction?": "uniquify|overwrite|prompt"
+}
+```
+Returns: `{ ok: true, downloadId, id, options }`
+
+### 11. browser_downloads
+List Chrome downloads plus recent Browser Relay download events.
+```
+GET http://127.0.0.1:18795/api/downloads?limit=20&state=complete
+POST http://127.0.0.1:18795/api/downloads/clear
+```
+Use this after `browser_download_start` to verify completion or diagnose interruptions.
+
+Real downloads require the extension's `downloads` permission. If Browser Relay
+was already loaded in Chrome before this capability was installed, reload the
+unpacked extension in `chrome://extensions`.
+
 ## Agent Decision Workflow
 
 When asked to do something with a web page:
@@ -261,8 +288,9 @@ When asked to do something with a web page:
 7. **`browser-relay wait`** after actions that trigger async UI changes
 8. **`browser-relay console`** if the page behaves unexpectedly or after risky actions
 9. **`browser-relay network`** after navigation or if requests fail, hang, or return unexpected statuses
-10. **Re-snapshot** after each action to verify state
-11. **Screenshot** if visual confirmation is needed
+10. **Use `browser-relay download-start` and `browser-relay downloads`** for real file downloads
+11. **Re-snapshot** after each action to verify state
+12. **Screenshot** if visual confirmation is needed
 
 ## Example Session
 

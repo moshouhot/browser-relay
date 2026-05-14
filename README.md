@@ -174,6 +174,8 @@ browser-relay key Control+L
 browser-relay wait --selector '#done' --visible --timeout 10000
 browser-relay wait --role button --name Save --visible --timeout 10000
 browser-relay scroll down --amount 1000
+browser-relay download-start https://example.com/file.pdf --filename files/file.pdf
+browser-relay downloads --limit 20
 browser-relay screenshot /tmp/page.png --full-page
 browser-relay eval 'document.title'
 browser-relay cdp Runtime.evaluate --params '{"expression":"document.title","returnByValue":true}'
@@ -253,6 +255,13 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/wait` | POST | Wait for selector, locator, text, URL, or expression |
 | `/api/cdp` | POST | Send a raw CDP command from loopback clients |
 | `/api/download` | POST | Extract an element URL by selector or locator |
+| `/api/download/start` | POST | Start a real Chrome download from a URL |
+| `/api/downloads` | GET | List Chrome downloads and recent download events |
+| `/api/downloads/clear` | POST | Clear captured download events |
+
+Real Chrome downloads require the extension's `downloads` permission. After
+upgrading from an older Browser Relay version, reload the unpacked extension in
+`chrome://extensions`.
 
 ### Error responses
 
@@ -301,6 +310,9 @@ browser-relay screenshot # Save a PNG screenshot
 browser-relay eval       # Evaluate JavaScript in the page
 browser-relay wait       # Wait for page state
 browser-relay cdp        # Send a raw CDP command
+browser-relay download   # Print src/href for an element
+browser-relay download-start # Start a Chrome download
+browser-relay downloads      # List Chrome downloads and events
 browser-relay api-help   # Show browser command examples
 ```
 

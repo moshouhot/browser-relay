@@ -122,6 +122,7 @@ Browser Relay 不是只给底层自动化脚本使用的，它也专门面向 Ag
 - 操作会落在已附加的真实标签页上，让用户的浏览器上下文保持可见、可预期。
 - Console 捕获会记录 `console.*`、页面异常和浏览器 log，方便诊断真实页面行为。
 - Network 捕获会记录请求、响应、完成和失败事件，并自动脱敏敏感 header。
+- 全页截图会使用页面布局尺寸并带回退路径，返回截图策略和尺寸元数据，避免静默失败。
 
 ## MCP 配置
 
@@ -218,7 +219,7 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/click` | POST | 按 CSS selector 或 locator 点击元素 |
 | `/api/type` | POST | 向焦点或 locator 输入文本 |
 | `/api/scroll` | POST | 滚动页面 |
-| `/api/screenshot` | GET/POST | 获取 PNG 截图 |
+| `/api/screenshot` | GET/POST | 获取 PNG 截图和策略/尺寸元数据 |
 | `/api/eval` | POST | 执行页面内 JavaScript |
 | `/api/wait` | POST | 等待 selector、locator、文本、URL 或表达式 |
 | `/api/cdp` | POST | 从 loopback 客户端发送原始 CDP 命令 |

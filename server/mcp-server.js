@@ -115,7 +115,7 @@ const TOOLS = [
   },
   {
     name: "browser_frames",
-    description: "List the frame tree for a browser tab. Use this before interacting with iframes; pass the returned frameId to snapshot, click, type, scroll, eval, wait, or download.",
+    description: "List the frame tree for a browser tab. Use this before interacting with iframes; pass the returned frameId to snapshot, click, type, key, scroll, eval, wait, or download.",
     inputSchema: {
       type: "object",
       properties: {
@@ -239,13 +239,14 @@ const TOOLS = [
   },
   {
     name: "browser_key",
-    description: "Press a key or keyboard shortcut in the active page using real Chrome keyboard events. Use for Enter, Escape, Tab, Arrow keys, or shortcuts like Control+L.",
+    description: "Press a key or keyboard shortcut in the active page or a target frame using real Chrome keyboard events. Use for Enter, Escape, Tab, Arrow keys, or shortcuts like Control+L.",
     inputSchema: {
       type: "object",
       properties: {
         key: { type: "string", description: "Single key to press, e.g. Enter, Escape, ArrowDown, a" },
         combo: { type: "string", description: "Shortcut combo, e.g. Control+L, Shift+Tab, Meta+K" },
         tabId: { type: "string", description: "Tab targetId (optional)" },
+        frameId: { type: "string", description: "Frame id from browser_frames (optional)" },
         ctrl: { type: "boolean", description: "Hold Control while pressing key" },
         alt: { type: "boolean", description: "Hold Alt/Option while pressing key" },
         shift: { type: "boolean", description: "Hold Shift while pressing key" },

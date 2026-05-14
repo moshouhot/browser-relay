@@ -1348,8 +1348,10 @@ async function handleKey(req, res) {
   if (!input) return errorResponse(res, 400, "key or combo is required");
   await ensureExtension();
   const sessionId = resolveTab(body.tabId);
-  await dispatchKeyPress(sessionId, input);
-  jsonResponse(res, 200, { ok: true, pressed: true, ...input });
+  const frameId = body.frameId;
+  const inputTarget = resolveFrameCommandSession(sessionId, frameId);
+  await dispatchKeyPress(inputTarget.sessionId, input);
+  jsonResponse(res, 200, { ok: true, pressed: true, frameId, oopif: inputTarget.oopif, ...input });
 }
 
 async function handleScreenshot(req, res) {

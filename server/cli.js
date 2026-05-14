@@ -596,6 +596,7 @@ async function browserApiCommand(cmd, args) {
       const data = await relayRequest("POST", "/api/key", {
         combo,
         tabId: tabIdFrom(flags),
+        frameId: frameIdFrom(flags),
         ctrl: flagBool(flags, "ctrl", "control"),
         alt: flagBool(flags, "alt", "option"),
         shift: flagBool(flags, "shift"),
@@ -794,6 +795,7 @@ Examples:
   browser-relay type 'hello world' --selector 'input[name=q]' --clear --submit
   browser-relay type 'hello world' --role textbox --name Search --clear
   browser-relay key Control+L
+  browser-relay key Enter --frame FRAME123
   browser-relay wait --selector '#done' --visible --timeout 10000
   browser-relay wait --role button --name Save --visible --timeout 10000
   browser-relay cdp Runtime.evaluate --params '{"expression":"document.title","returnByValue":true}'

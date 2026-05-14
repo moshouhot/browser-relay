@@ -59,6 +59,7 @@ browser-relay click --role button --name 'Save' --exact --tab <tabId>
 browser-relay type 'hello world' --selector 'input[name=q]' --clear --submit --tab <tabId> --frame <frameId>
 browser-relay type 'hello world' --role textbox --name Search --clear --tab <tabId>
 browser-relay key Control+L --tab <tabId>
+browser-relay key Enter --tab <tabId> --frame <frameId>
 browser-relay wait --selector '#done' --visible --timeout 10000 --tab <tabId>
 browser-relay wait --role button --name Save --visible --timeout 10000 --tab <tabId>
 browser-relay scroll down --amount 1000 --tab <tabId>
@@ -174,11 +175,13 @@ Pass `"frameId"` to scroll an iframe.
 Press a key or keyboard shortcut using real keyboard events.
 ```
 POST http://127.0.0.1:18795/api/key
-Body: { "key?": "Enter", "combo?": "Control+L", "tabId?": "..." }
+Body: { "key?": "Enter", "combo?": "Control+L", "tabId?": "...", "frameId?": "..." }
 ```
 
 Use `combo` for shortcuts (`Control+L`, `Meta+K`, `Shift+Tab`) and `key`
 for single keys (`Enter`, `Escape`, `ArrowDown`, `a`).
+Pass `"frameId"` when the focused target is inside an iframe or OOPIF child
+target.
 
 ### 8. browser_screenshot
 Capture a PNG screenshot (base64). Full-page capture uses layout metrics and returns strategy/size metadata.

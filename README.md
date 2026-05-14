@@ -171,6 +171,7 @@ browser-relay click --role button --name 'Save' --exact
 browser-relay type 'hello world' --selector 'input[name=q]' --clear --submit --frame FRAME123
 browser-relay type 'hello world' --role textbox --name Search --clear
 browser-relay key Control+L
+browser-relay key Enter --frame FRAME123
 browser-relay wait --selector '#done' --visible --timeout 10000
 browser-relay wait --role button --name Save --visible --timeout 10000
 browser-relay scroll down --amount 1000
@@ -188,7 +189,7 @@ printf 'hello\nworld' | browser-relay type --selector textarea --stdin
 browser-relay eval --stdin < script.js
 ```
 
-All browser commands accept `--json` for the raw API response and `--tab <id>` to target a specific tab. `snapshot`, `click`, `type`, `scroll`, `eval`, `wait`, and `download` also accept `--frame <id>` from `browser-relay frames`. Cross-process iframe targets are marked with `oopif: true` in the raw frames response.
+All browser commands accept `--json` for the raw API response and `--tab <id>` to target a specific tab. `snapshot`, `click`, `type`, `key`, `scroll`, `eval`, `wait`, and `download` also accept `--frame <id>` from `browser-relay frames`. Cross-process iframe targets are marked with `oopif: true` in the raw frames response.
 
 Element commands accept CSS selectors and a lightweight locator form. Use `--role`, `--name`, `--locator-text`, and `--exact` when a stable CSS selector is unavailable. This is intentionally a pragmatic approximation of accessible locators, not a full Playwright locator engine.
 
@@ -248,7 +249,7 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/snapshot` | GET | Get annotated text or raw HTML |
 | `/api/click` | POST | Click an element by CSS selector or locator |
 | `/api/type` | POST | Type into the focused element or a locator |
-| `/api/key` | POST | Press a key or keyboard shortcut |
+| `/api/key` | POST | Press a key or keyboard shortcut, optionally in a frame |
 | `/api/scroll` | POST | Scroll the page |
 | `/api/screenshot` | GET/POST | Capture a PNG screenshot with strategy/size metadata |
 | `/api/eval` | POST | Evaluate JavaScript in the page |
@@ -304,7 +305,7 @@ browser-relay network    # Print captured network events
 browser-relay snapshot   # Print annotated page text
 browser-relay click      # Click an element by CSS selector or locator
 browser-relay type       # Type text into the page
-browser-relay key        # Press a key or shortcut
+browser-relay key        # Press a key or shortcut, optionally in a frame
 browser-relay scroll     # Scroll the page
 browser-relay screenshot # Save a PNG screenshot
 browser-relay eval       # Evaluate JavaScript in the page

@@ -155,6 +155,7 @@ browser-relay click --role button --name 'Save' --exact
 browser-relay type 'hello world' --selector 'input[name=q]' --clear --submit --frame FRAME123
 browser-relay type 'hello world' --role textbox --name Search --clear
 browser-relay key Control+L
+browser-relay key Enter --frame FRAME123
 browser-relay wait --selector '#done' --visible --timeout 10000
 browser-relay wait --role button --name Save --visible --timeout 10000
 browser-relay scroll down --amount 1000
@@ -172,7 +173,7 @@ printf 'hello\nworld' | browser-relay type --selector textarea --stdin
 browser-relay eval --stdin < script.js
 ```
 
-所有浏览器操作命令都支持 `--json` 输出原始 API 响应，也支持 `--tab <id>` 指定标签页。
+所有浏览器操作命令都支持 `--json` 输出原始 API 响应，也支持 `--tab <id>` 指定标签页。`snapshot`、`click`、`type`、`key`、`scroll`、`eval`、`wait`、`download` 也支持从 `browser-relay frames` 获取的 `--frame <id>`。
 
 元素命令支持 CSS selector，也支持轻量 locator：`--role`、`--name`、`--locator-text`、`--exact`。这只是面向 Agent 的实用近似，不是完整 Playwright locator 引擎。
 
@@ -221,7 +222,7 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/snapshot` | GET | 获取页面文本快照或 HTML |
 | `/api/click` | POST | 按 CSS selector 或 locator 点击元素 |
 | `/api/type` | POST | 向焦点或 locator 输入文本 |
-| `/api/key` | POST | 按键或键盘快捷键 |
+| `/api/key` | POST | 按键或键盘快捷键，可指定 frame |
 | `/api/scroll` | POST | 滚动页面 |
 | `/api/screenshot` | GET/POST | 获取 PNG 截图和策略/尺寸元数据 |
 | `/api/eval` | POST | 执行页面内 JavaScript |
@@ -276,7 +277,7 @@ browser-relay network    # 输出网络事件记录
 browser-relay snapshot   # 输出页面结构化文本
 browser-relay click      # 按 CSS selector 或 locator 点击元素
 browser-relay type       # 输入文本
-browser-relay key        # 按键或快捷键
+browser-relay key        # 按键或快捷键，可指定 frame
 browser-relay scroll     # 滚动页面
 browser-relay screenshot # 保存 PNG 截图
 browser-relay eval       # 在页面内执行 JavaScript

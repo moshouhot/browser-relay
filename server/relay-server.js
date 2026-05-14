@@ -98,11 +98,16 @@ function waitForExtension(timeoutMs = 3_000) {
 // ---------------------------------------------------------------------------
 function sendToExtension(method, params, sessionId) {
   const ws = extensionWs;
-  if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error("Extension not connected"));
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return Promise.reject(relayError("extension_not_connected", "Extension not connected", { status: 503, retryable: true }));
+  }
   const id = nextExtensionId++;
   const payload = { id, method: "forwardCDPCommand", params: { method, params, ...(sessionId ? { sessionId } : {}) } };
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { pendingCommands.delete(id); reject(new Error(`CDP command timeout: ${method}`)); }, COMMAND_TIMEOUT_MS);
+    const timer = setTimeout(() => {
+      pendingCommands.delete(id);
+      reject(relayError("cdp_timeout", `CDP command timeout: ${method}`, { status: 504, retryable: true, details: { method } }));
+    }, COMMAND_TIMEOUT_MS);
     pendingCommands.set(id, {
       resolve: (v) => { clearTimeout(timer); resolve(v); },
       reject: (e) => { clearTimeout(timer); reject(e); },
@@ -119,11 +124,11 @@ function sendToExtension(method, params, sessionId) {
 function resolveSession(targetId) {
   if (targetId) {
     for (const t of connectedTargets.values()) { if (t.targetId === targetId) return t.sessionId; }
-    throw new Error(`No attached tab with targetId: ${targetId}`);
+    throw relayError("tab_not_found", `No attached tab with targetId: ${targetId}`, { status: 404, details: { targetId } });
   }
   let last = null;
   for (const t of connectedTargets.values()) last = t;
-  if (!last) throw new Error("No attached tabs. Install the Browser Relay extension and open a tab.");
+  if (!last) throw relayError("no_attached_tabs", "No attached tabs. Install the Browser Relay extension and open a tab.", { status: 409, retryable: true });
   return last.sessionId;
 }
 
@@ -441,24 +446,99 @@ function jsonResponse(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) });
   res.end(payload);
 }
-function errorResponse(res, status, message) { jsonResponse(res, status, { ok: false, error: message }); }
+
+function relayError(code, message, options = {}) {
+  const err = new Error(message);
+  err.relayCode = code;
+  err.status = options.status;
+  err.details = options.details;
+  err.retryable = options.retryable;
+  return err;
+}
+
+function defaultCodeForStatus(status) {
+  if (status === 400) return "invalid_request";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "not_found";
+  if (status === 413) return "request_too_large";
+  if (status === 503) return "extension_not_connected";
+  if (status === 504) return "cdp_timeout";
+  return status >= 500 ? "internal_error" : "request_failed";
+}
+
+function errorPayload(code, message, options = {}) {
+  const payload = {
+    ok: false,
+    code,
+    error: message,
+    message,
+    status: options.status ?? 500,
+    retryable: options.retryable === true,
+  };
+  if (options.details !== undefined) payload.details = options.details;
+  return payload;
+}
+
+function normalizeError(err, fallbackStatus = 500) {
+  if (err && typeof err === "object" && err.relayCode) {
+    return errorPayload(err.relayCode, err.message || String(err), {
+      status: err.status || fallbackStatus,
+      retryable: err.retryable,
+      details: err.details,
+    });
+  }
+
+  const message = err instanceof Error ? err.message : String(err);
+  if (message === "Extension disconnected") {
+    return errorPayload("extension_disconnected", message, { status: 503, retryable: true });
+  }
+  if (message.startsWith("No attached tab with targetId: ")) {
+    const targetId = message.slice("No attached tab with targetId: ".length);
+    return errorPayload("tab_not_found", message, { status: 404, details: { targetId } });
+  }
+  if (message.startsWith("CDP command timeout: ")) {
+    const method = message.slice("CDP command timeout: ".length);
+    return errorPayload("cdp_timeout", message, { status: 504, retryable: true, details: { method } });
+  }
+  if (message.startsWith("Request body too large")) {
+    return errorPayload("request_too_large", message, { status: 413 });
+  }
+  if (message === "Invalid JSON in request body") {
+    return errorPayload("invalid_json", message, { status: 400 });
+  }
+  return errorPayload(defaultCodeForStatus(fallbackStatus), message, { status: fallbackStatus });
+}
+
+function errorResponse(res, status, message, options = {}) {
+  const code = options.code || defaultCodeForStatus(status);
+  jsonResponse(res, status, errorPayload(code, message, { ...options, status }));
+}
+
+function validationError(res, message, field) {
+  return errorResponse(res, 400, message, {
+    code: "invalid_request",
+    details: field ? { field } : undefined,
+  });
+}
 
 async function readBody(req) {
   const chunks = []; let totalSize = 0;
   for await (const chunk of req) {
     totalSize += chunk.length;
-    if (totalSize > MAX_BODY_SIZE) throw new Error("Request body too large (max 64KB)");
+    if (totalSize > MAX_BODY_SIZE) throw relayError("request_too_large", "Request body too large (max 64KB)", { status: 413 });
     chunks.push(chunk);
   }
   const raw = Buffer.concat(chunks).toString("utf-8");
   if (!raw.trim()) return {};
-  try { return JSON.parse(raw); } catch { throw new Error("Invalid JSON in request body"); }
+  try { return JSON.parse(raw); } catch { throw relayError("invalid_json", "Invalid JSON in request body", { status: 400 }); }
 }
 
 async function ensureExtension() {
   if (extensionConnected()) return;
   const reconnected = await waitForExtension(3_000);
-  if (!reconnected || !extensionConnected()) { throw new Error("Extension not connected. Is the browser running with the extension?"); }
+  if (!reconnected || !extensionConnected()) {
+    throw relayError("extension_not_connected", "Extension not connected. Is the browser running with the extension?", { status: 503, retryable: true });
+  }
 }
 
 function sleep(ms) {
@@ -584,13 +664,16 @@ function locatorDescription(locator) {
 }
 
 function elementNotFound(locator, frameId) {
-  return {
-    ok: false,
-    code: "element_not_found",
-    error: `Element not found: ${locatorDescription(locator)}`,
-    locator,
-    frameId,
-  };
+  const description = typeof locator === "string" ? locator : locatorDescription(locator);
+  const details = { locator };
+  if (frameId !== undefined) details.frameId = frameId;
+  const payload = errorPayload("element_not_found", `Element not found: ${description}`, {
+    status: 200,
+    details,
+  });
+  payload.locator = locator;
+  if (frameId !== undefined) payload.frameId = frameId;
+  return payload;
 }
 
 function elementResolverExpression(locator, foundExpression) {
@@ -814,10 +897,10 @@ async function handleNetworkClear(req, res) {
 }
 
 async function handleNavigate(req, res) {
-  await ensureExtension();
   const body = await readBody(req);
   const url = body.url;
-  if (!url || typeof url !== "string") return errorResponse(res, 400, "url is required");
+  if (!url || typeof url !== "string") return validationError(res, "url is required", "url");
+  await ensureExtension();
   const sessionId = resolveTab(body.tabId);
   const result = await sendToExtension("Page.navigate", { url }, sessionId);
   await new Promise((r) => setTimeout(r, 500));
@@ -836,10 +919,10 @@ async function handleNavigate(req, res) {
 }
 
 async function handleEval(req, res) {
-  await ensureExtension();
   const body = await readBody(req);
   const expression = body.expression;
-  if (!expression || typeof expression !== "string") return errorResponse(res, 400, "expression is required");
+  if (!expression || typeof expression !== "string") return validationError(res, "expression is required", "expression");
+  await ensureExtension();
   const sessionId = resolveTab(body.tabId);
   const returnByValue = body.returnByValue !== false;
   const result = await evaluateInFrame(sessionId, expression, { frameId: body.frameId, returnByValue, awaitPromise: true });
@@ -888,10 +971,10 @@ async function handleSnapshot(req, res) {
 }
 
 async function handleClick(req, res) {
-  await ensureExtension();
   const body = await readBody(req);
   const locator = locatorFromBody(body, { allowText: true });
-  if (!locator) return errorResponse(res, 400, "selector or locator is required");
+  if (!locator) return validationError(res, "selector or locator is required", "selector");
+  await ensureExtension();
   const sessionId = resolveTab(body.tabId);
   const frameId = body.frameId;
 
@@ -915,10 +998,10 @@ async function handleClick(req, res) {
 }
 
 async function handleType(req, res) {
-  await ensureExtension();
   const body = await readBody(req);
   const text = body.text;
-  if (typeof text !== "string") return errorResponse(res, 400, "text is required");
+  if (typeof text !== "string") return validationError(res, "text is required", "text");
+  await ensureExtension();
   const sessionId = resolveTab(body.tabId);
   const locator = locatorFromBody(body);
   const frameId = body.frameId;
@@ -973,11 +1056,11 @@ async function handleType(req, res) {
 }
 
 async function handleScreenshot(req, res) {
-  await ensureExtension();
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const body = req.method === "POST" ? await readBody(req) : {};
   const tabId = body.tabId || url.searchParams.get("tabId") || undefined;
   const fullPage = body.fullPage === true || url.searchParams.get("fullPage") === "true";
+  await ensureExtension();
   const sessionId = resolveTab(tabId);
 
   let strategy = fullPage ? "fullPageClip" : "viewport";
@@ -1013,8 +1096,8 @@ async function handleScreenshot(req, res) {
 }
 
 async function handleScroll(req, res) {
-  await ensureExtension();
   const body = await readBody(req);
+  await ensureExtension();
   const sessionId = resolveTab(body.tabId);
   const frameId = body.frameId;
   const direction = body.direction || "down";
@@ -1029,10 +1112,12 @@ async function handleScroll(req, res) {
 }
 
 async function handleDownload(req, res) {
-  await ensureExtension();
   const body = await readBody(req);
   const locator = locatorFromBody(body, { allowText: true });
-  if (!locator) return errorResponse(res, 400, "selector or locator is required (e.g. 'img[src=...]', 'a[href=...]', or {\"role\":\"link\",\"name\":\"Download\"})");
+  if (!locator) {
+    return validationError(res, "selector or locator is required (e.g. 'img[src=...]', 'a[href=...]', or {\"role\":\"link\",\"name\":\"Download\"})", "selector");
+  }
+  await ensureExtension();
   const sessionId = resolveTab(body.tabId);
   const frameId = body.frameId;
   const result = await evaluateInFrame(sessionId, elementResolverExpression(locator, `
@@ -1136,17 +1221,17 @@ async function checkWaitCondition(sessionId, body) {
 }
 
 async function handleWait(req, res) {
-  await ensureExtension();
   const body = await readBody(req);
   if (!hasWaitCondition(body)) {
-    return errorResponse(res, 400, "wait requires selector, text, url, urlRegex, or expression");
+    return validationError(res, "wait requires selector, text, url, urlRegex, or expression");
   }
   if (typeof body.urlRegex === "string" && body.urlRegex) {
     try { new RegExp(body.urlRegex); }
     catch (err) {
-      return errorResponse(res, 400, `Invalid urlRegex: ${err instanceof Error ? err.message : String(err)}`);
+      return validationError(res, `Invalid urlRegex: ${err instanceof Error ? err.message : String(err)}`, "urlRegex");
     }
   }
+  await ensureExtension();
   const sessionId = resolveTab(body.tabId);
   const timeoutMs = boundedNumber(body.timeoutMs ?? body.timeout, DEFAULT_WAIT_TIMEOUT_MS, 1, MAX_WAIT_TIMEOUT_MS);
   const pollMs = boundedNumber(body.pollMs ?? body.poll, DEFAULT_WAIT_POLL_MS, 50, 10_000);
@@ -1162,23 +1247,22 @@ async function handleWait(req, res) {
   }
 
   jsonResponse(res, 200, {
-    ok: false,
+    ...errorPayload("wait_timeout", `Wait timed out after ${timeoutMs}ms`, { status: 200, retryable: true, details: { timeoutMs } }),
     matched: false,
     timeout: true,
     elapsedMs: Date.now() - start,
-    error: `Wait timed out after ${timeoutMs}ms`,
     lastResult,
   });
 }
 
 async function handleCdp(req, res) {
-  await ensureExtension();
   if (!isLoopbackAddress(req.socket.remoteAddress)) {
-    return errorResponse(res, 403, "CDP passthrough is only available from loopback clients");
+    return errorResponse(res, 403, "CDP passthrough is only available from loopback clients", { code: "forbidden" });
   }
   const body = await readBody(req);
   const method = body.method;
-  if (!method || typeof method !== "string") return errorResponse(res, 400, "method is required");
+  if (!method || typeof method !== "string") return validationError(res, "method is required", "method");
+  await ensureExtension();
   const params = body.params && typeof body.params === "object" ? body.params : {};
   const sessionId = typeof body.sessionId === "string" && body.sessionId
     ? body.sessionId
@@ -1270,17 +1354,21 @@ const server = createServer(async (req, res) => {
     if (handler) {
       try { await handler(req, res); }
       catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        LOG.error("api.error", { path, error: message });
-        errorResponse(res, 500, message);
+        const payload = normalizeError(err);
+        LOG.error("api.error", { path, code: payload.code, error: payload.message });
+        errorResponse(res, payload.status, payload.message, {
+          code: payload.code,
+          retryable: payload.retryable,
+          details: payload.details,
+        });
       }
       return;
     }
 
-    return errorResponse(res, 404, `Unknown API endpoint: ${path}`);
+    return errorResponse(res, 404, `Unknown API endpoint: ${path}`, { code: "endpoint_not_found", details: { path } });
   }
 
-  errorResponse(res, 404, "Not found");
+  errorResponse(res, 404, "Not found", { code: "not_found", details: { path } });
 });
 
 // ---------------------------------------------------------------------------
@@ -1331,7 +1419,11 @@ wss.on("connection", (ws, req) => {
     if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
     if (extensionWs !== ws) return;
     extensionWs = null;
-    for (const [id, pending] of pendingCommands) { clearTimeout(pending.timer); pending.reject(new Error("Extension disconnected")); pendingCommands.delete(id); }
+    for (const [id, pending] of pendingCommands) {
+      clearTimeout(pending.timer);
+      pending.reject(relayError("extension_disconnected", "Extension disconnected", { status: 503, retryable: true }));
+      pendingCommands.delete(id);
+    }
     scheduleGraceCleanup();
   });
 

@@ -225,6 +225,26 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/cdp` | POST | 从 loopback 客户端发送原始 CDP 命令 |
 | `/api/download` | POST | 按 selector 或 locator 获取元素 URL |
 
+### 错误响应
+
+HTTP 和命令级失败会返回稳定的 JSON 结构：
+
+```json
+{
+  "ok": false,
+  "code": "element_not_found",
+  "error": "Element not found: button.submit",
+  "message": "Element not found: button.submit",
+  "status": 200,
+  "retryable": false,
+  "details": { "selector": "button.submit" }
+}
+```
+
+顶层 `error` 字符串会继续保留，兼容旧客户端。新的集成应优先根据
+`code` 分支处理；CLI 使用 `--json` 时会输出同样的结构，MCP 工具会把这些
+响应标记为 `isError: true`。
+
 ## CLI
 
 ```bash

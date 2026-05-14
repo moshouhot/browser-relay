@@ -335,6 +335,35 @@ function locatorFromFlags(flags, fallbackSelector, options = {}) {
   return Object.keys(locator).length ? locator : undefined;
 }
 
+class RelayRequestError extends Error {
+  constructor(payload, fallbackMessage) {
+    super(errorMessage(payload, fallbackMessage));
+    this.payload = payload;
+    this.code = payload?.code;
+    this.status = payload?.status;
+  }
+}
+
+function errorMessage(payload, fallback = "Command failed") {
+  const message = payload?.message || payload?.error || fallback;
+  return payload?.code ? `${payload.code}: ${message}` : String(message);
+}
+
+function fallbackErrorPayload(message, options = {}) {
+  return {
+    ok: false,
+    code: options.code || "request_failed",
+    error: message,
+    message,
+    status: options.status ?? 0,
+    retryable: options.retryable === true,
+  };
+}
+
+function wantsJson(args) {
+  return args.includes("--json") || args.includes("-j");
+}
+
 async function relayRequest(method, path, body) {
   const url = `${RELAY_URL}${path}`;
   const options = { method, headers: { "Content-Type": "application/json" } };
@@ -345,7 +374,8 @@ async function relayRequest(method, path, body) {
     response = await fetch(url, options);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(`Cannot reach Browser Relay at ${RELAY_URL}. Run: browser-relay start (${detail})`);
+    const message = `Cannot reach Browser Relay at ${RELAY_URL}. Run: browser-relay start (${detail})`;
+    throw new RelayRequestError(fallbackErrorPayload(message, { code: "relay_unreachable", retryable: true }), message);
   }
 
   const text = await response.text();
@@ -353,8 +383,10 @@ async function relayRequest(method, path, body) {
   try { data = text ? JSON.parse(text) : null; } catch { /* keep text */ }
 
   if (!response.ok) {
-    const message = data?.error || data?.message || `HTTP ${response.status}`;
-    throw new Error(String(message));
+    const payload = data && typeof data === "object"
+      ? data
+      : fallbackErrorPayload(`HTTP ${response.status}`, { code: "http_error", status: response.status });
+    throw new RelayRequestError(payload, `HTTP ${response.status}`);
   }
   return data;
 }
@@ -433,7 +465,16 @@ function ensureOk(data, json = false) {
     printData(data, true);
     process.exit(1);
   }
-  throw new Error(data.error || data.code || "Command failed");
+  throw new RelayRequestError(data, "Command failed");
+}
+
+function printCliError(err, args = []) {
+  if (wantsJson(args) && err?.payload) {
+    printData(err.payload, true);
+    process.exit(1);
+  }
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
 }
 
 async function browserApiCommand(cmd, args) {
@@ -723,7 +764,7 @@ switch (cmd) {
   case "wait":
   case "cdp":
     try { await browserApiCommand(cmd, process.argv.slice(3)); }
-    catch (err) { console.error(err instanceof Error ? err.message : String(err)); process.exit(1); }
+    catch (err) { printCliError(err, process.argv.slice(3)); }
     break;
   case "-h":
   case "--help":

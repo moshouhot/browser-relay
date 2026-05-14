@@ -215,6 +215,28 @@ Body: { "method": "Runtime.evaluate", "params?": {}, "tabId?": "...", "sessionId
 ```
 Use this only when high-level commands are insufficient.
 
+## Error Model
+
+Failures return structured JSON while keeping the legacy top-level `error`
+string:
+
+```json
+{
+  "ok": false,
+  "code": "element_not_found",
+  "error": "Element not found: button.submit",
+  "message": "Element not found: button.submit",
+  "status": 200,
+  "retryable": false,
+  "details": { "selector": "button.submit" }
+}
+```
+
+For automation, branch on `code` instead of parsing `error`. Use
+`browser-relay <command> --json` when you need the full envelope. MCP tools
+return the same JSON in the tool content and set `isError: true` for
+`ok:false` responses.
+
 ## Agent Decision Workflow
 
 When asked to do something with a web page:

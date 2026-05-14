@@ -134,8 +134,8 @@ Browser Relay is designed to be comfortable for agents, not just low-level autom
 - Actions target existing attached tabs, keeping the user's browser context visible and predictable.
 - Iframe-aware commands can list frames and target a specific `frameId`, including cross-origin OOPIF frames when Chrome exposes them as child targets.
 - `wait` and controlled raw CDP passthrough cover advanced cases without making Browser Relay a full Playwright replacement.
-- Console capture records `console.*`, page exceptions, and browser log entries for debugging real-page behavior.
-- Network capture records request, response, finish, and failure events with sensitive headers redacted.
+- Console capture records `console.*`, page exceptions, and browser log entries for debugging real-page behavior. OOPIF entries keep `tabId` on the root page and include `targetId`, `frameId`, and `oopif` metadata.
+- Network capture records request, response, finish, and failure events with sensitive headers redacted. OOPIF requests use the same root-page `tabId` plus child target/frame metadata.
 - Full-page screenshots use layout metrics plus a fallback path so agents get stable capture metadata instead of silent failures.
 
 ## MCP

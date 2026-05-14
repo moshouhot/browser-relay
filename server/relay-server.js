@@ -241,6 +241,41 @@ function targetForSession(sessionId) {
   return connectedTargets.get(sessionId) || null;
 }
 
+function eventContextForSession(sessionId) {
+  const target = targetForSession(sessionId);
+  const root = connectedTargets.get(rootSessionForSession(sessionId)) || target;
+  const pageTarget = root && isPageTarget(root.targetInfo) ? root : target;
+  return {
+    target,
+    pageTarget,
+    tabId: pageTarget?.targetId || target?.targetId || "",
+    targetId: target?.targetId || "",
+    frameId: target?.frameId || "",
+    oopif: Boolean(target && isIframeTarget(target.targetInfo)),
+  };
+}
+
+function sessionsForTargetScope(targetId) {
+  if (!targetId) return [...connectedTargets.keys()];
+  let scopedTarget = null;
+  for (const target of connectedTargets.values()) {
+    if (target.targetId === targetId || target.frameId === targetId) {
+      scopedTarget = target;
+      break;
+    }
+  }
+  const sessionId = scopedTarget?.sessionId || resolveTab(targetId);
+  const rootSessionId = rootSessionForSession(sessionId);
+  return [...connectedTargets.values()]
+    .filter((target) => target.sessionId === rootSessionId || target.rootSessionId === rootSessionId)
+    .map((target) => target.sessionId);
+}
+
+function entryMatchesTarget(entry, targetId) {
+  if (!targetId) return true;
+  return entry.tabId === targetId || entry.targetId === targetId || entry.frameId === targetId;
+}
+
 function remoteObjectValue(obj) {
   if (!obj || typeof obj !== "object") return "";
   if ("value" in obj) return obj.value;
@@ -263,10 +298,14 @@ function appendConsoleEntry(entry) {
 }
 
 function appendConsoleEvent(sessionId, method, params = {}) {
-  const target = targetForSession(sessionId);
+  const context = eventContextForSession(sessionId);
+  const target = context.target;
   const base = {
     sessionId: sessionId || "",
-    tabId: target?.targetId || "",
+    tabId: context.tabId,
+    targetId: context.targetId,
+    frameId: context.frameId,
+    oopif: context.oopif,
     url: target?.targetInfo?.url || "",
     title: target?.targetInfo?.title || "",
   };
@@ -354,12 +393,17 @@ function appendNetworkEntry(entry) {
 }
 
 function baseNetworkEntry(sessionId) {
-  const target = targetForSession(sessionId);
+  const context = eventContextForSession(sessionId);
+  const target = context.target;
+  const pageTarget = context.pageTarget;
   return {
     sessionId: sessionId || "",
-    tabId: target?.targetId || "",
-    pageUrl: target?.targetInfo?.url || "",
-    title: target?.targetInfo?.title || "",
+    tabId: context.tabId,
+    targetId: context.targetId,
+    frameId: context.frameId,
+    oopif: context.oopif,
+    pageUrl: pageTarget?.targetInfo?.url || target?.targetInfo?.url || "",
+    title: pageTarget?.targetInfo?.title || target?.targetInfo?.title || "",
   };
 }
 
@@ -568,7 +612,8 @@ function onExtensionMessage(data) {
     if (cdpMethod === "Target.attachedToTarget") {
       const { sessionId, targetInfo } = cdpParams || {};
       registerAttachedTarget(sessionId, targetInfo, sourceSessionId);
-      if (sessionId && targetInfo?.targetId && (targetInfo?.type ?? "page") === "page") {
+      const type = targetInfo?.type ?? "page";
+      if (sessionId && targetInfo?.targetId && (type === "page" || type === "iframe")) {
         void enableConsoleCapture(sessionId).catch((err) => LOG.warn("console.enable.failed", { sessionId, error: err.message || String(err) }));
         void enableNetworkCapture(sessionId).catch((err) => LOG.warn("network.enable.failed", { sessionId, error: err.message || String(err) }));
       }
@@ -1073,13 +1118,13 @@ async function handleConsole(req, res) {
   const limit = boundedNumber(url.searchParams.get("limit"), 100, 0, 1_000);
 
   if (tabId) {
-    await enableConsoleCapture(resolveTab(tabId)).catch(() => {});
+    await Promise.all(sessionsForTargetScope(tabId).map((sessionId) => enableConsoleCapture(sessionId).catch(() => {})));
   } else {
     await Promise.all([...connectedTargets.keys()].map((sessionId) => enableConsoleCapture(sessionId).catch(() => {})));
   }
 
   let entries = consoleEntries;
-  if (tabId) entries = entries.filter((entry) => entry.tabId === tabId);
+  if (tabId) entries = entries.filter((entry) => entryMatchesTarget(entry, tabId));
   if (level) entries = entries.filter((entry) => entry.level === level);
   const matchedTotal = entries.length;
   const selected = limit === 0 ? [] : entries.slice(-limit);
@@ -1099,7 +1144,7 @@ async function handleConsoleClear(req, res) {
   const level = body.level;
   const before = consoleEntries.length;
   consoleEntries = consoleEntries.filter((entry) => {
-    if (tabId && entry.tabId !== tabId) return true;
+    if (tabId && !entryMatchesTarget(entry, tabId)) return true;
     if (level && entry.level !== level) return true;
     return false;
   });
@@ -1119,13 +1164,13 @@ async function handleNetwork(req, res) {
   const limit = boundedNumber(url.searchParams.get("limit"), 100, 0, MAX_NETWORK_ENTRIES);
 
   if (tabId) {
-    await enableNetworkCapture(resolveTab(tabId)).catch(() => {});
+    await Promise.all(sessionsForTargetScope(tabId).map((sessionId) => enableNetworkCapture(sessionId).catch(() => {})));
   } else {
     await Promise.all([...connectedTargets.keys()].map((sessionId) => enableNetworkCapture(sessionId).catch(() => {})));
   }
 
   let entries = networkEntries;
-  if (tabId) entries = entries.filter((entry) => entry.tabId === tabId);
+  if (tabId) entries = entries.filter((entry) => entryMatchesTarget(entry, tabId));
   if (type) entries = entries.filter((entry) => entry.type === type);
   if (method) entries = entries.filter((entry) => entry.method === method);
   if (status) entries = entries.filter((entry) => String(entry.status) === String(status));
@@ -1150,7 +1195,7 @@ async function handleNetworkClear(req, res) {
   const requestId = body.requestId;
   const before = networkEntries.length;
   networkEntries = networkEntries.filter((entry) => {
-    if (tabId && entry.tabId !== tabId) return true;
+    if (tabId && !entryMatchesTarget(entry, tabId)) return true;
     if (type && entry.type !== type) return true;
     if (requestId && entry.requestId !== requestId) return true;
     return false;

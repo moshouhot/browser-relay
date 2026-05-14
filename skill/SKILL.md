@@ -109,6 +109,9 @@ POST http://127.0.0.1:18795/api/console/clear
 Body: { "tabId?": "...", "level?": "error" }
 ```
 Use this after actions that may trigger frontend errors or warnings.
+OOPIF entries keep `tabId` on the root page and include `targetId`, `frameId`,
+and `oopif` metadata. `tabId` filters accept a page targetId, child targetId, or
+frameId.
 
 ### 2c. browser_network
 Read captured network request, response, finish, and failure events. Sensitive headers such as Cookie, Authorization, and Set-Cookie are redacted.
@@ -118,6 +121,8 @@ POST http://127.0.0.1:18795/api/network/clear
 Body: { "tabId?": "...", "type?": "response", "requestId?": "..." }
 ```
 Use this after navigation or actions that trigger requests to diagnose failed loads, redirects, API statuses, and blocked resources.
+OOPIF request entries follow the same root-page `tabId` rule and retain child
+target/frame metadata.
 
 ### 3. browser_snapshot
 Get a text representation of the current page (interactive elements annotated).

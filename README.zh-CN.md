@@ -120,8 +120,8 @@ Browser Relay 不是只给底层自动化脚本使用的，它也专门面向 Ag
 - HTTP API 足够简单，自定义 Agent 或脚本也可以直接调用。
 - 页面快照会标注链接、按钮、输入框等交互元素，方便 Agent 先理解页面再行动。
 - 操作会落在已附加的真实标签页上，让用户的浏览器上下文保持可见、可预期。
-- Console 捕获会记录 `console.*`、页面异常和浏览器 log，方便诊断真实页面行为。
-- Network 捕获会记录请求、响应、完成和失败事件，并自动脱敏敏感 header。
+- Console 捕获会记录 `console.*`、页面异常和浏览器 log，方便诊断真实页面行为。OOPIF 记录会把 `tabId` 归到根页面，同时保留 `targetId`、`frameId` 和 `oopif` 元数据。
+- Network 捕获会记录请求、响应、完成和失败事件，并自动脱敏敏感 header。OOPIF 请求同样使用根页面 `tabId`，并保留 child target/frame 元数据。
 - 全页截图会使用页面布局尺寸并带回退路径，返回截图策略和尺寸元数据，避免静默失败。
 
 ## MCP 配置

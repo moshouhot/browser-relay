@@ -181,6 +181,7 @@ async function reannounceAttachedTabs() {
   for (const [tabId, tab] of tabs.entries()) {
     if (tab.state !== 'connected' || !tab.sessionId || !tab.targetId) continue
     try {
+      await enableChildTargetAutoAttach(tabId)
       await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', { expression: '1', returnByValue: true })
     } catch {
       tabs.delete(tabId)
@@ -197,6 +198,19 @@ async function reannounceAttachedTabs() {
     } catch { setBadge(tabId, 'on') }
   }
   await persistState()
+}
+
+async function enableChildTargetAutoAttach(tabId, sessionId) {
+  try {
+    const debuggee = sessionId ? { tabId, sessionId } : { tabId }
+    await chrome.debugger.sendCommand(debuggee, 'Target.setAutoAttach', {
+      autoAttach: true,
+      waitForDebuggerOnStart: false,
+      flatten: true,
+    })
+  } catch (err) {
+    console.warn(`Target.setAutoAttach failed for tab ${tabId}: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 async function recoverRelaySession() {
@@ -323,6 +337,7 @@ async function attachTab(tabId, opts = {}) {
   const debuggee = { tabId }
   await chrome.debugger.attach(debuggee, '1.3')
   await chrome.debugger.sendCommand(debuggee, 'Page.enable').catch(() => {})
+  await enableChildTargetAutoAttach(tabId)
 
   const info = await chrome.debugger.sendCommand(debuggee, 'Target.getTargetInfo')
   const targetInfo = info?.targetInfo
@@ -469,7 +484,9 @@ function onDebuggerEvent(source, method, params) {
   if (!tab?.sessionId) return
 
   if (method === 'Target.attachedToTarget' && params?.sessionId) {
-    childSessionToTab.set(String(params.sessionId), tabId)
+    const childSessionId = String(params.sessionId)
+    childSessionToTab.set(childSessionId, tabId)
+    void enableChildTargetAutoAttach(tabId, childSessionId)
   }
   if (method === 'Target.detachedFromTarget' && params?.sessionId) {
     childSessionToTab.delete(String(params.sessionId))

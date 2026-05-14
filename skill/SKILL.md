@@ -51,6 +51,7 @@ only when you need the full API response.
 browser-relay tabs
 browser-relay frames --tab <tabId>
 browser-relay console --tab <tabId> --limit 50
+browser-relay network --tab <tabId> --limit 50
 browser-relay snapshot --tab <tabId> --max-length 20000
 browser-relay snapshot --tab <tabId> --frame <frameId>
 browser-relay click 'button[type=submit]' --tab <tabId>
@@ -100,6 +101,15 @@ POST http://127.0.0.1:18795/api/console/clear
 Body: { "tabId?": "...", "level?": "error" }
 ```
 Use this after actions that may trigger frontend errors or warnings.
+
+### 2c. browser_network
+Read captured network request, response, finish, and failure events. Sensitive headers such as Cookie, Authorization, and Set-Cookie are redacted.
+```
+GET http://127.0.0.1:18795/api/network?tabId=<id>&type=response&method=GET&status=200&limit=100&clear=false
+POST http://127.0.0.1:18795/api/network/clear
+Body: { "tabId?": "...", "type?": "response", "requestId?": "..." }
+```
+Use this after navigation or actions that trigger requests to diagnose failed loads, redirects, API statuses, and blocked resources.
 
 ### 3. browser_snapshot
 Get a text representation of the current page (interactive elements annotated).
@@ -217,8 +227,9 @@ When asked to do something with a web page:
 6. **Execute** (`browser-relay click`, `browser-relay type`, `browser-relay scroll`) one at a time
 7. **`browser-relay wait`** after actions that trigger async UI changes
 8. **`browser-relay console`** if the page behaves unexpectedly or after risky actions
-9. **Re-snapshot** after each action to verify state
-10. **Screenshot** if visual confirmation is needed
+9. **`browser-relay network`** after navigation or if requests fail, hang, or return unexpected statuses
+10. **Re-snapshot** after each action to verify state
+11. **Screenshot** if visual confirmation is needed
 
 ## Example Session
 

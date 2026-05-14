@@ -135,6 +135,7 @@ Browser Relay is designed to be comfortable for agents, not just low-level autom
 - Iframe-aware commands can list frames and target a specific `frameId`.
 - `wait` and controlled raw CDP passthrough cover advanced cases without making Browser Relay a full Playwright replacement.
 - Console capture records `console.*`, page exceptions, and browser log entries for debugging real-page behavior.
+- Network capture records request, response, finish, and failure events with sensitive headers redacted.
 
 ## MCP
 
@@ -161,6 +162,7 @@ For agents that can run shell commands, the CLI is usually faster and less error
 browser-relay tabs
 browser-relay frames --tab ABC123
 browser-relay console --tab ABC123 --limit 50
+browser-relay network --tab ABC123 --limit 50
 browser-relay snapshot --tab ABC123 --max-length 20000
 browser-relay snapshot --tab ABC123 --frame FRAME123
 browser-relay click 'button[type=submit]' --tab ABC123
@@ -209,6 +211,9 @@ curl "http://127.0.0.1:18795/api/snapshot?tabId=ABC123&frameId=FRAME123"
 # Read captured console/page errors
 curl "http://127.0.0.1:18795/api/console?tabId=ABC123&limit=50"
 
+# Read captured network events
+curl "http://127.0.0.1:18795/api/network?tabId=ABC123&type=response&limit=50"
+
 # Click an element
 curl -X POST http://127.0.0.1:18795/api/click \
   -H "Content-Type: application/json" \
@@ -232,6 +237,8 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/tabs` | GET | List attached tabs |
 | `/api/console` | GET | Read captured console/page error entries |
 | `/api/console/clear` | POST | Clear captured console entries |
+| `/api/network` | GET | Read captured network events |
+| `/api/network/clear` | POST | Clear captured network events |
 | `/api/navigate` | POST | Navigate an attached tab |
 | `/api/frames` | GET | List frame tree for a tab |
 | `/api/snapshot` | GET | Get annotated text or raw HTML |
@@ -261,6 +268,7 @@ browser-relay uninstall  # Unregister the background service
 browser-relay tabs       # List attached browser tabs
 browser-relay frames     # List frames in a tab
 browser-relay console    # Print captured console/page errors
+browser-relay network    # Print captured network events
 browser-relay snapshot   # Print annotated page text
 browser-relay click      # Click an element by CSS selector or locator
 browser-relay type       # Type text into the page

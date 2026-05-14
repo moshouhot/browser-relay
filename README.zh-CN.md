@@ -121,6 +121,7 @@ Browser Relay 不是只给底层自动化脚本使用的，它也专门面向 Ag
 - 页面快照会标注链接、按钮、输入框等交互元素，方便 Agent 先理解页面再行动。
 - 操作会落在已附加的真实标签页上，让用户的浏览器上下文保持可见、可预期。
 - Console 捕获会记录 `console.*`、页面异常和浏览器 log，方便诊断真实页面行为。
+- Network 捕获会记录请求、响应、完成和失败事件，并自动脱敏敏感 header。
 
 ## MCP 配置
 
@@ -145,6 +146,7 @@ Browser Relay 不是只给底层自动化脚本使用的，它也专门面向 Ag
 browser-relay tabs
 browser-relay frames --tab ABC123
 browser-relay console --tab ABC123 --limit 50
+browser-relay network --tab ABC123 --limit 50
 browser-relay snapshot --tab ABC123 --max-length 20000
 browser-relay snapshot --tab ABC123 --frame FRAME123
 browser-relay click 'button[type=submit]' --tab ABC123
@@ -182,6 +184,7 @@ curl http://127.0.0.1:18795/api/tabs
 
 curl "http://127.0.0.1:18795/api/frames?tabId=ABC123"
 curl "http://127.0.0.1:18795/api/console?tabId=ABC123&limit=50"
+curl "http://127.0.0.1:18795/api/network?tabId=ABC123&type=response&limit=50"
 
 curl "http://127.0.0.1:18795/api/snapshot?tabId=ABC123"
 
@@ -207,6 +210,8 @@ curl -X POST http://127.0.0.1:18795/api/wait \
 | `/api/tabs` | GET | 列出已附加标签页 |
 | `/api/console` | GET | 读取 console 和页面错误记录 |
 | `/api/console/clear` | POST | 清理 console 记录 |
+| `/api/network` | GET | 读取网络请求和响应事件 |
+| `/api/network/clear` | POST | 清理网络事件记录 |
 | `/api/navigate` | POST | 导航已附加标签页 |
 | `/api/frames` | GET | 列出标签页 frame tree |
 | `/api/snapshot` | GET | 获取页面文本快照或 HTML |
@@ -236,6 +241,7 @@ browser-relay uninstall  # 卸载后台服务
 browser-relay tabs       # 列出已附加标签页
 browser-relay frames     # 列出标签页 frames
 browser-relay console    # 输出 console 和页面错误记录
+browser-relay network    # 输出网络事件记录
 browser-relay snapshot   # 输出页面结构化文本
 browser-relay click      # 按 CSS selector 或 locator 点击元素
 browser-relay type       # 输入文本
